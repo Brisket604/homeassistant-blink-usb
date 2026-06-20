@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Blink(1) Status Light",
+        "description": "Press Submit to detect and add your blink(1) device."
+      },
+      "confirm": {
+        "title": "Confirm Blink(1) Discovery",
+        "description": "A blink(1) device was found (VID: {vid}, PID: {pid}). Press Submit to add it."
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to blink(1). Check it is plugged in and permissions are correct."
+    },
+    "abort": {
+      "already_configured": "This blink(1) device is already configured."
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "domain": "blink1_status",
+  "name": "Blink(1) Status Light",
+  "version": "2.0.0",
+  "integration_type": "device",
+  "iot_class": "assumed_state",
+  "config_flow": true,
+  "single_config_entry": true,
+  "codeowners": [],
+  "requirements": [],
+  "loggers": ["custom_components.blink1_status"],
+  "usb": [
+    {
+      "vid": "27B8",
+      "pid": "01ED"
+    }
+  ],
+  "dependencies": [],
+  "documentation": "https://github.com/your-username/homeassistant-blink1"
+}
