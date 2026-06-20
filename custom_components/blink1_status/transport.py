@@ -51,29 +51,20 @@ class LinuxHidrawTransport(Blink1Transport):
     def read(self, report_id: int = 0x01) -> bytes:
         """Read a HID feature report via ioctl HIDIOCGFEATURE."""
         import fcntl
-        import signal
+        import select
 
         # Prepare a 9-byte buffer with report_id at byte 0
         buffer = bytearray(9)
         buffer[0] = report_id
 
-        def _timeout_handler(signum, frame):
+        # Wait for the fd to be ready for I/O (timeout-safe, works from any thread)
+        ready, _, _ = select.select([self.fd], [], [], READ_TIMEOUT_S)
+        if not ready:
             raise TimeoutError(
                 f"No response from device within {READ_TIMEOUT_S}s"
             )
 
-        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-        try:
-            signal.setitimer(signal.ITIMER_REAL, READ_TIMEOUT_S)
-            result = fcntl.ioctl(self.fd, HIDIOCGFEATURE_9, buffer)
-            signal.setitimer(signal.ITIMER_REAL, 0)
-        except TimeoutError:
-            raise
-        except OSError:
-            signal.setitimer(signal.ITIMER_REAL, 0)
-            raise
-        finally:
-            signal.signal(signal.SIGALRM, old_handler)
+        result = fcntl.ioctl(self.fd, HIDIOCGFEATURE_9, buffer)
 
         # result is the modified buffer (bytearray)
         data = bytes(result) if isinstance(result, (bytearray, bytes)) else bytes(buffer)
