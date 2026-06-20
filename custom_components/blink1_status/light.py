@@ -28,7 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Blink(1) light entity."""
-    device = hass.data[DOMAIN][entry.entry_id]
+    device = hass.data[DOMAIN][entry.entry_id]["transport"]
     async_add_entities([Blink1Light(device, entry)])
 
 

@@ -9,12 +9,31 @@ import struct
 
 _LOGGER = logging.getLogger(__name__)
 
+# Timeout for HID read operations (seconds)
+READ_TIMEOUT_S = 1.0
+
+# HIDIOCGFEATURE ioctl number for 9-byte buffer on Linux
+# Computed as _IOC(_IOC_READ|_IOC_WRITE, ord('H'), 0x07, 9) = 0xC0094807
+HIDIOCGFEATURE_9 = 0xC0094807
+
 
 class Blink1Transport:
     """Minimal transport interface for blink(1) communication."""
 
     def write(self, payload: bytes) -> None:
         """Write one HID feature report to the device."""
+
+    def read(self, report_id: int = 0x01) -> bytes:
+        """Read a HID feature report from the device.
+
+        Returns:
+            bytes: The response bytes (at least 8 bytes).
+
+        Raises:
+            TimeoutError: If no response within 1 second.
+            OSError: If the response is truncated (less than 8 bytes).
+        """
+        raise NotImplementedError
 
     def close(self) -> None:
         """Close transport resources."""
@@ -29,6 +48,41 @@ class LinuxHidrawTransport(Blink1Transport):
     def write(self, payload: bytes) -> None:
         os.write(self.fd, payload)
 
+    def read(self, report_id: int = 0x01) -> bytes:
+        """Read a HID feature report via ioctl HIDIOCGFEATURE."""
+        import fcntl
+        import signal
+
+        # Prepare a 9-byte buffer with report_id at byte 0
+        buffer = bytearray(9)
+        buffer[0] = report_id
+
+        def _timeout_handler(signum, frame):
+            raise TimeoutError(
+                f"No response from device within {READ_TIMEOUT_S}s"
+            )
+
+        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        try:
+            signal.setitimer(signal.ITIMER_REAL, READ_TIMEOUT_S)
+            result = fcntl.ioctl(self.fd, HIDIOCGFEATURE_9, buffer)
+            signal.setitimer(signal.ITIMER_REAL, 0)
+        except TimeoutError:
+            raise
+        except OSError:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            raise
+        finally:
+            signal.signal(signal.SIGALRM, old_handler)
+
+        # result is the modified buffer (bytearray)
+        data = bytes(result) if isinstance(result, (bytearray, bytes)) else bytes(buffer)
+        if len(data) < 8:
+            raise OSError(
+                f"Truncated HID response: got {len(data)} bytes, expected at least 8"
+            )
+        return data
+
     def close(self) -> None:
         os.close(self.fd)
 
@@ -41,6 +95,27 @@ class PyHidTransport(Blink1Transport):
 
     def write(self, payload: bytes) -> None:
         self.device.write(list(payload))
+
+    def read(self, report_id: int = 0x01) -> bytes:
+        """Read a HID feature report via get_feature_report."""
+        import time
+
+        deadline = time.monotonic() + READ_TIMEOUT_S
+        while True:
+            data = self.device.get_feature_report(report_id, 9)
+            if data:
+                result = bytes(data)
+                if len(result) < 8:
+                    raise OSError(
+                        f"Truncated HID response: got {len(result)} bytes, "
+                        "expected at least 8"
+                    )
+                return result
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    f"No response from device within {READ_TIMEOUT_S}s"
+                )
+            time.sleep(0.01)
 
     def close(self) -> None:
         self.device.close()
