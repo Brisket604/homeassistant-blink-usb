@@ -22,7 +22,7 @@ Custom integration for [Home Assistant](https://www.home-assistant.io/) to contr
 
 ### Manual
 
-1. Copy `custom_components/blink1_status/` to your HA config directory
+1. Copy the `custom_components/blink1_status/` folder into your HA `config/` directory
 2. Restart Home Assistant
 
 ## Requirements
